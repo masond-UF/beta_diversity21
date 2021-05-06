@@ -1,0 +1,79 @@
+---
+title: "Variance partitioning script"
+author: "David S, Mason"
+date: "5/6/2021"
+output: html_document
+---
+This is a script for conducting variance partitioning on understory vegetation data collected at 59 sites at Noxumbee National Wildlife Refuge and Tombigbee National Forest during two separate sampling periods. The environmental (explanatory) matrix includes overstory characteristics, soil analyses, and geospatially derived data, among other variables. UTM coordinates also included, so the analyses below includes a section deriving spatial descriptors for use in the variance partitioning. 
+
+## Load packages
+```{r echo=false}
+library(tidyverse)
+library(vegan)
+library(ade4)
+library(adespatial)
+library(spdep)
+library(betapart)
+library(spdep)
+library(corrplot)
+library(SoDA) 
+library(rgdal)
+```
+
+## Bring in the data
+```{r echo=false}
+spec <- read.csv("data/species.csv") # Species 
+head(spec)
+
+env <- read.csv("data/env_coords.csv") # Environmental
+head(env)
+```
+
+## Selecting species to use in the analyses
+
+First, I use a package develoepd by Kevin McGarigal that identifies common and rare species. Then, I remove those species to generate a reduced species matrix. I will conduct analyses on both datasets.
+```{r}
+source("code/biostats.r") # attach the code from biostats
+
+occur <- foa.plots(spec)
+rare <- which(occur[,2]<5)
+common <- which(occur[,2]>95)
+
+red_spec <- spec[,-c(rare,common)]
+```
+
+## Transforming the species data 
+```{r}
+spe.hel <- decostand(spec, "hellinger") 
+red.spe.hel <- decostand(red_spec, "hellinger")
+```
+## Preparing environmental data 
+
+The species data is ready for analysis, but I need to check the environmental data for collinearity. I will begin by removing some redunant variables from the matrix. Date is removed in favor of sampling period, numerical texture proportions are removed in favor of the categorical descriptor. Also, site is dropped because this is not an explanatory variable and spatial descriptors are dropped because these will be dealt with separately. Next, I want to scale the data, so I need to separate the numerical variables from categorical variables and bring these back together. I conclude this step by setting the data in a more intuitive arrangement and converting disturbance intensity into an ordinal factor.
+```{r}
+# Drop site, date, spatial descriptors and texture proportions
+red.env <- env[,-c(1:4,16,17,18)] 
+
+# Separate the categorical and ordinal data
+env_factors <- select(red.env, PERIOD, TEXTURE, OWNERSHIP, DISTURB, INTENSITY)
+
+# Separate the numerical data
+env_numeric <- select(red.env, -PERIOD, -TEXTURE, -OWNERSHIP, -DISTURB, -INTENSITY)
+
+# Scale the data
+env_numeric <- as.data.frame(scale(env_numeric))
+
+# Bring them back together 
+env.red.scaled <- cbind(env_factors, env_numeric)
+
+# Rearrange the data so types (e.g., soil, landscape, overstory) are grouped
+env.red.scaled <- select(env.red.scaled, PERIOD, OWNERSHIP, DISTURB, INTENSITY, TEXTURE, everything())
+
+# Convert intensity into ordinal 
+env.red.scaled$INTENSITY <- factor(env.red.scaled$INTENSITY, order = TRUE, levels = c("NONE","LOW", "MED", "HIGH"))
+```
+## Checking for collinearity 
+```{r}
+
+```
+
