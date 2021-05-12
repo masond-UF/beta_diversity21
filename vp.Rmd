@@ -224,3 +224,63 @@ env.temp <- cbind(red.env.factors, scale(red.env.numeric))
 # Drop the collinear variables
 env.final <- env.temp[which(names(env.temp) %!in% drop.list)]	
 ```
+## Selecting the variables from the environmental (explanatory) matrix to use for variance partitioning
+
+Now that I have dropped the collinear variables, I can move forward with variable selection. At this point, I am running parallel analyses on both the full and reduced species matrix to see which is best explained by the data. First, I create an RDA object using the full final environmental matrix and the hellinger transformed species matrix. Then, I run this RDA object through a stepwise variable selection function. I am using forward selection, which starts by identifying the most explanatory (highest R2) significant variable and iteratively adding the next most explanatory variable remaining until the variables are no longer significant. 
+
+The analysis using the reduced species matrix has more explanatory power than the analysis using the full matrix, so I will use the reduced species matrix moving forward.
+```{r}
+# Full species matrix and environmental variables = 13% explained
+spe.rda <- rda(spe.hel ~ ., env.final)
+full.step.forward <- ordiR2step(rda(spe.hel ~ 1, data=env.final), 
+scope=formula(spe.rda), R2scope = F, direction="forward", pstep=1000)
+
+# Reduced species matrix and environmental variables = 16% explained
+red.spe.rda <- rda(red.spe.hel ~ ., env.final)
+red.step.forward <- ordiR2step(rda(red.spe.hel ~ 1, data=env.final), 
+scope=formula(red.spe.rda), R2scope = F, direction="forward", pstep=1000)
+```
+## Creating the spatial descriptor variables
+
+
+```{r}
+spatial.tmp <- as.data.frame(env[,2:3]) # extract spatial variables for later analysis
+spatial.tmp <- rename(spatial.tmp, longitude = east_x, latitude = north_y)
+spatial <- geoXY(spatial.tmp$longitude, spatial.tmp$latitude)
+
+# Is there a linear trend in the mite data?
+anova(rda(red.spe.hel, spatial)) # Result: significant trend
+# Computation of linearly detrended mite data
+red.spe.hel.det <- resid(lm(as.matrix(red.spe.hel) ~ ., data = as.data.frame(spatial)))
+
+## Step 1. Construct the matrix of dbMEM variables
+dbmem.tmp <- dbmem(spatial, silent = FALSE)
+dbmem <- as.data.frame(dbmem.tmp)
+
+# Truncation distance used above:
+thr <- give.thresh(dist(spatial))
+
+# Display and count the eigenvalues
+attributes(dbmem.tmp)$values 
+length(attributes(dbmem.tmp)$values) # 18 eigenvalues
+
+## Step 2. Run the global dbMEM analysis on the detrended
+## Hellinger-transformed reduced species data
+dbmem.rda <- rda(red.spe.hel.det ~., dbmem)
+anova(dbmem.rda) # model is significant
+
+
+## Step 3. Since the R-square is significant, compute the adjusted
+## R2 and run a forward selection of the dbmem variables 
+R2a <- RsquareAdj(dbmem.rda)$adj.r.squared
+dbmem.fwd <- forward.sel(red.spe.hel, as.matrix(dbmem),
+												 adjR2thresh = R2a)
+
+nb.sig.dbmem <- nrow(dbmem.fwd) # 3 signif. dbMEM
+
+# Identity of the significant dbMEM in increasing order
+dbmem.sign <- sort(dbmem.fwd[ ,2])
+
+# Write the significant dbMEM to a new object 
+dbmem.red <- dbmem[ ,c(dbmem.sign)]
+```
