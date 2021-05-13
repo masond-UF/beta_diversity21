@@ -4,7 +4,7 @@ author: "David S, Mason"
 date: "5/6/2021"
 output: html_document
 ---
-This is a script for conducting variance partitioning on understory vegetation data collected at 59 sites at Noxumbee National Wildlife Refuge and Tombigbee National Forest during two separate sampling periods. The environmental (explanatory) matrix includes overstory characteristics, soil analyses, and geospatially derived data, among other variables. UTM coordinates also included, so the analyses below includes a section deriving spatial descriptors for use in the variance partitioning. 
+This is a script for conducting variance partitioning on understory vegetation data collected at 59 sites at Noxumbee National Wildlife Refuge and Tombigbee National Forest during two separate sampling periods. The environmental (explanatory) matrix includes overstory characteristics, soil analyses, and geospatially derived data, among other variables. UTM coordinates are also included (irregular, non-gridded design), so the analyses below includes a section deriving spatial descriptors for use in the variance partitioning. 
 
 ## Load packages
 ```{r echo=false}
@@ -242,7 +242,11 @@ scope=formula(red.spe.rda), R2scope = F, direction="forward", pstep=1000)
 ```
 ## Creating the spatial descriptor variables
 
+In this next step, I am deriving and selecting spatial descriptors from the UTM coordinates of the site locations with an approach adapted from p. 326 of Brocard et al. (2018). First, I extract the spatial descriptors (UTM coordinates) from the environmental matrix. I give the columns false names (longitude and latitude) to match the input of geoXY(), which converts the coordinates into Euclidean distances. Then, I search for a linear pattern and detrend the data. At step 1, I begin the actual analysis by constructing a matrix of Euclidean distances among sites. Next, I truncate this matrix, only retaining distances among close neighbours. Then, I run a PCoA on the truncated matrix and retain significant eigenvectors that model positive spatial autocorrelation. Finally, I write these two? eigenvectors to a new vector for later use as spatial descriptors alongside environmental variables in variance partitioning. 
 
+Outstanding questions: 
+do I satisfy any minimum distance requirements (p.316)?
+can I use geoXY on UTM coordinates?
 ```{r}
 spatial.tmp <- as.data.frame(env[,2:3]) # extract spatial variables for later analysis
 spatial.tmp <- rename(spatial.tmp, longitude = east_x, latitude = north_y)
