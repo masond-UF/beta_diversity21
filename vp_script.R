@@ -233,4 +233,42 @@ dbmem.sign <- sort(dbmem.fwd[ ,2])
 
 # Write the significant dbMEM to a new object 
 dbmem.red <- dbmem[ ,c(dbmem.sign)]
+# Visualizing the spatial descriptors ####
 
+## Step 1. Construct the matrix of dbMEM variables
+dbmem.viz.tmp <- dbmem(spatial, silent = FALSE)
+dbmem.viz <- as.data.frame(dbmem.tmp)
+
+# Truncation distance used above:
+thr <- give.thresh(dist(spatial))
+
+# Display and count the eigenvalues
+attributes(dbmem.viz.tmp)$values 
+length(attributes(dbmem.viz.tmp)$values) 
+
+## Step 2. Run the global dbMEM analysis on the detrended
+## Hellinger-transformed reduced species data
+dbmem.viz.rda <- rda(red.spe.hel ~., dbmem.viz)
+anova(dbmem.viz.rda) # model is significant
+
+
+## Step 3. Since the R-square is significant, compute the adjusted
+## R2 and run a forward selection of the dbmem variables 
+R2a.viz <- RsquareAdj(dbmem.viz.rda)$adj.r.squared
+dbmem.viz.fwd <- forward.sel(red.spe.hel, as.matrix(dbmem.viz),
+												 adjR2thresh = R2a.viz)
+
+nb.sig.dbmem.viz <- nrow(dbmem.viz.fwd) # 3 signif. dbMEM
+
+# Identity of the significant dbMEM in increasing order
+dbmem.viz.sign <- sort(dbmem.viz.fwd[ ,2])
+
+# Write the significant dbMEM to a new object 
+dbmem.viz.red <- dbmem.viz[ ,c(dbmem.viz.sign)]
+
+## Step 4. New dbMEM analysis with 8 significant dbMEM variables ## Adjusted R-square after forward selection: R2adj = 0.2418
+dbmem.viz.rda2 <- rda(red.spe.hel ~ ., data = dbmem.viz.red) 
+fwd.viz.R2a <- RsquareAdj(dbmem.viz.rda2)$adj.r.squared
+anova(dbmem.viz.rda2)
+
+axes.test <- anova(dbmem.viz.rda2, by = "axis") 
