@@ -2,12 +2,14 @@
 title: "Variance partitioning script"
 author: "David S, Mason"
 date: "5/6/2021"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 This is a script for conducting variance partitioning on understory vegetation data collected at 59 sites at Noxumbee National Wildlife Refuge and Tombigbee National Forest during two separate sampling periods. The environmental (explanatory) matrix includes overstory characteristics, soil analyses, and geospatially derived data, among other variables. UTM coordinates are also included (irregular, non-gridded design), so the analyses below includes a section deriving spatial descriptors for use in the variance partitioning. 
 
 ## Load packages
-```{r echo=false}
+```{r,results='hide', message = FALSE}
 library(tidyverse)
 library(vegan)
 library(ade4)
@@ -19,20 +21,16 @@ library(corrplot)
 library(SoDA) 
 library(rgdal)
 ```
-
 ## Bring in the data
-```{r echo=false}
+```{r}
 spec <- read.csv("data/species.csv") # Species 
-head(spec)
-
 env <- read.csv("data/env_coords.csv") # Environmental
-head(env)
 ```
 
 ## Selecting species to use in the analyses
 
 First, I use a package develoepd by Kevin McGarigal that identifies common and rare species. Then, I remove those species to generate a reduced species matrix. I will conduct analyses on both datasets.
-```{r}
+```{r,fig.show='hide'}
 source("code/biostats.r") # attach the code from biostats
 
 occur <- foa.plots(spec)
@@ -55,7 +53,7 @@ The species data is ready for analysis, but I need to check the environmental da
 red.env <- env[,-c(1:4,16,17,18)] 
 
 # Separate the numerical data
-env_numeric <- select(red.env, -PERIOD, -TEXTURE, -OWNERSHIP, -DISTURB, -INTENSITY)
+env.numeric <- select(red.env, -PERIOD, -TEXTURE, -OWNERSHIP, -DISTURB, -INTENSITY)
 
 # Separate the categorical and ordinal data
 env.factors <- select(red.env, PERIOD, TEXTURE, OWNERSHIP, DISTURB, INTENSITY)
@@ -70,7 +68,7 @@ env.factors$INTENSITY <- factor(red.env$INTENSITY, order = TRUE, levels = c("NON
 First, I scale all numerical variables and calculate correlations between all pairs. Then, I select all correlations above 0.7 and create a list of variables to be dropped from the dataset. 
 ```{r}
 # Scale the data
-red.env.cont.corr <- as.data.frame(scale(env_numeric)) %>% 
+red.env.cont.corr <- as.data.frame(scale(env.numeric)) %>% 
 								 		cor(method = c("kendall"))
 
 # Create a dataframe
@@ -219,7 +217,7 @@ drop.list <- c(numeric.drop, categorical.drop)
 }
 
 # Bring the data back together
-env.temp <- cbind(red.env.factors, scale(red.env.numeric))
+env.temp <- cbind(env.factors, scale(env.numeric))
 
 # Drop the collinear variables
 env.final <- env.temp[which(names(env.temp) %!in% drop.list)]	
@@ -229,7 +227,7 @@ env.final <- env.temp[which(names(env.temp) %!in% drop.list)]
 Now that I have dropped the collinear variables, I can move forward with variable selection. At this point, I am running parallel analyses on both the full and reduced species matrix to see which is best explained by the data. First, I create an RDA object using the full final environmental matrix and the hellinger transformed species matrix. Then, I run this RDA object through a stepwise variable selection function. I am using forward selection, which starts by identifying the most explanatory (highest R2) significant variable and iteratively adding the next most explanatory variable remaining until the variables are no longer significant. 
 
 The analysis using the reduced species matrix has more explanatory power than the analysis using the full matrix, so I will use the reduced species matrix moving forward.
-```{r}
+```{r,message = FALSE,results = "hide"}
 # Full species matrix and environmental variables = 13% explained
 spe.rda <- rda(spe.hel ~ ., env.final)
 full.step.forward <- ordiR2step(rda(spe.hel ~ 1, data=env.final), 

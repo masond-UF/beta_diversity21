@@ -272,3 +272,6 @@ fwd.viz.R2a <- RsquareAdj(dbmem.viz.rda2)$adj.r.squared
 anova(dbmem.viz.rda2)
 
 axes.test <- anova(dbmem.viz.rda2, by = "axis") 
+
+# Variance partitioning ####
+
