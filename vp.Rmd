@@ -288,7 +288,7 @@ dbmem.red <- dbmem[ ,c(dbmem.sign)]
 ```
 ## Visualizing the spatial descriptors
 
-We already have the spatial descriptors written to an object to be used for variance partitioning. However, I would like to take a detour to visualize those descriptors. I use an approach derived from p.XXX of Brocard et al (2019). Interestingly, you can discern the shape of the sampling area fairly well from this map.
+We already have the spatial descriptors written to an object to be used for variance partitioning. However, I would like to take a detour to visualize those descriptors. I use an approach derived from p.321 of Brocard et al (2019). 
 
 Outstanding questions: why do we run the dbmem analyses twice for the visualization?
 ```{r}
@@ -329,4 +329,63 @@ fwd.viz.R2a <- RsquareAdj(dbmem.viz.rda2)$adj.r.squared
 anova(dbmem.viz.rda2)
 
 axes.test <- anova(dbmem.viz.rda2, by = "axis")
+
+## Step 5. Plot the significant canonical axes
+dbmem.viz.rda2.axes <- 
+	scores(dbmem.viz.rda2, 
+				 choices = c(1:nb.sig.dbmem.viz), 
+				 display = "lc", 
+				 scaling = 1) 
+
+par(mfrow = c(1,nb.ax))
+for(i in 1:nb.ax){
+sr.value(spatial, mite.rda2.axes[ ,i],
+sub = paste("RDA",i), csub = 2)
+
+```
+## Conducting variance partitioning
+
+Now that we have the spatial descriptors and forward selected variables, we are ready to proceed with variance partitioning. First, we need to assign out variances to broad groups.
+```{r}
+spatiotemporal <- cbind(dbmem.red, env$PERIOD)
+landscape <- select(env, OWNERSHIP, WATER.150, DECID, DEVOP, CROP, GRASS)
+overstory <- select(env, CANOPY, Pinus.taeda, Quercus.alba)
+soil.ground <- select(env, TEXTURE, MG, PH, ROCK)
+
+red.spe.part <- varpart(red.spe.hel, spatiotemporal, landscape,
+												overstory, soil.ground)
+
+dev.off()
+plot(red.spe.part, digits = 2, Xnames = c('Space & time', 'Landscape', 
+		 'Overstory', 'Soil & ground'), id.size = 0.75, bg = 2:5)
+```
+## Test significance od fractions
+
+Finally, we need to test the significance of these fractions by running  anova on RDAs of each fraction, including the whole thing. 
+
+Outstanding question: do we need to run this on every single possible combo?
+```{r}
+env.final.xy <- cbind(env.final, dbmem.red)
+
+rda.all <- rda(red.spe.hel ~MEM2+MEM4+MEM5+MEM15+PERIOD+
+							 	OWNERSHIP+WATER.150+DECID+DEVOP+CROP+GRASS+
+							 	CANOPY+Pinus.taeda+Quercus.alba+TEXTURE+MG+
+							 	PH+ROCK, data = env.final.xy)
+anova(rda.all)
+
+rda.soil.ground <- rda(red.spe.hel ~ TEXTURE + 
+											 	MG + PH + ROCK, data = env.final.xy)
+anova(rda.soil.ground)
+
+rda.overstory <- rda(red.spe.hel ~ CANOPY + Quercus.alba + 
+					 					Pinus.taeda, data = env.final.xy)
+anova(rda.overstory)
+
+rda.landscape <- rda(red.spe.hel ~ DECID + DEVOP + CROP + 
+								WATER.150 + GRASS + OWNERSHIP, data = env.final.xy)
+anova(rda.landscape)
+
+rda.space.time <- rda(red.spe.hel ~ PERIOD + MEM2 + MEM4 +
+												MEM5 + MEM15, data = env.final.xy)
+anova(rda.space.time)
 ```

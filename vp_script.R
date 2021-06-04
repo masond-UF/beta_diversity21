@@ -37,19 +37,19 @@ red.spe.hel <- decostand(red_spec, "hellinger")
 red.env <- env[,-c(1:4,16,17,18)] # 
 
 # Separate the numerical data
-red.env.numeric <- as.data.frame(select(red.env, -PERIOD, -TEXTURE, 
+env.numeric <- as.data.frame(select(red.env, -PERIOD, -TEXTURE, 
 																		-OWNERSHIP, -DISTURB, -INTENSITY))
 
 # Separate the categorical and ordinal data
-red.env.factors <- select(red.env, PERIOD, TEXTURE, OWNERSHIP, DISTURB, INTENSITY)
+env.factors <- select(red.env, PERIOD, TEXTURE, OWNERSHIP, DISTURB, INTENSITY)
 
 # Convert intensity into ordinal 
-red.env.factors$INTENSITY <- factor(red.env$INTENSITY, 
+env.factors$INTENSITY <- factor(red.env$INTENSITY, 
 														order = TRUE, levels = c("NONE", "LOW", "MED", "HIGH"))
 
 # Check for collinearity ####
 # Correlations among continuous variables
-red.env.cont.corr <- as.data.frame(scale(env_numeric)) %>% 
+red.env.cont.corr <- as.data.frame(scale(env.numeric)) %>% 
 								 		cor(method = c("kendall"))
 
 red.env.cont.corr.df <- as.data.frame(as.table(red.env.cont.corr))
@@ -273,5 +273,61 @@ anova(dbmem.viz.rda2)
 
 axes.test <- anova(dbmem.viz.rda2, by = "axis") 
 
+## Step 5. Plot the significant canonical axes
+dbmem.viz.rda2.axes <- 
+	scores(dbmem.viz.rda2, 
+				 choices = c(1:nb.sig.dbmem.viz), 
+				 display = "lc", 
+				 scaling = 1) 
+
+source("code/sr.value.R") # attach the code from biostats
+
+par(mfrow = c(1,nb.sig.dbmem.viz))
+for(i in 1:nb.sig.dbmem.viz){
+	sr.value(spatial, dbmem.viz.rda2.axes[ ,i],
+	sub = paste("RDA",i), csub = 2)
+}
+
 # Variance partitioning ####
+spatiotemporal <- cbind(dbmem.red, env$PERIOD)
+landscape <- select(env, OWNERSHIP, WATER.150, DECID, DEVOP, CROP, GRASS)
+overstory <- select(env, CANOPY, Pinus.taeda, Quercus.alba)
+soil.ground <- select(env, TEXTURE, MG, PH, ROCK)
+
+red.spe.part <- varpart(red.spe.hel, spatiotemporal, landscape,
+												overstory, soil.ground)
+
+dev.off()
+plot(red.spe.part, digits = 2, Xnames = c('Space & time', 'Landscape', 
+		 'Overstory', 'Soil & ground'), id.size = 0.75, bg = 2:5)
+# Run anova on fractions ####
+env.final.xy <- cbind(env.final, dbmem.red)
+
+rda.all <- rda(red.spe.hel ~MEM2+MEM4+MEM5+MEM15+PERIOD+
+							 	OWNERSHIP+WATER.150+DECID+DEVOP+CROP+GRASS+
+							 	CANOPY+Pinus.taeda+Quercus.alba+TEXTURE+MG+
+							 	PH+ROCK, data = env.final.xy)
+anova(rda.all)
+
+rda.soil.ground <- rda(red.spe.hel ~ TEXTURE + 
+											 	MG + PH + ROCK, data = env.final.xy)
+anova(rda.soil.ground)
+
+rda.overstory <- rda(red.spe.hel ~ CANOPY + Quercus.alba + 
+					 					Pinus.taeda, data = env.final.xy)
+anova(rda.overstory)
+
+rda.landscape <- rda(red.spe.hel ~ DECID + DEVOP + CROP + 
+								WATER.150 + GRASS + OWNERSHIP, data = env.final.xy)
+anova(rda.landscape)
+
+rda.space.time <- rda(red.spe.hel ~ PERIOD + MEM2 + MEM4 +
+												MEM5 + MEM15, data = env.final.xy)
+anova(rda.space.time)
+
+
+
+
+
+
 
