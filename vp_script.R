@@ -178,7 +178,7 @@ drop.list <- c(numeric.drop, categorical.drop)
 }
 
 # Bring the data back together
-env.temp <- cbind(red.env.factors, scale(red.env.numeric))
+env.temp <- cbind(env.factors, scale(env.numeric))
 
 # Drop the collinear variables
 env.final <- env.temp[which(names(env.temp) %!in% drop.list)]	
