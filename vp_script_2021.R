@@ -12,6 +12,7 @@ library(SoDA)
 library(rgdal)
 
 options(scipen = 999)
+options(warn=-1)
 
 
 # Bring in the data ####
@@ -184,3 +185,115 @@ env.temp <- cbind(env.factors, scale(env.numeric))
 # Drop the collinear variables
 env.final <- env.temp[which(names(env.temp) %!in% drop.list)]	
 
+# Variable selection ####
+# Make groups to use for forward selection
+time <- env.final %>% select(PERIOD)
+
+soil.ground <- env.final %>% select(TEXTURE,OM,P,K,CA,MG,ZN,PH,LICHEN,
+																		LITTER,MOSS,ROCK,ROOT,SOIL,STREAM,
+																		TRAMPLING,WOOD,WRACKI,CRUSTACEAN)
+landscape <- env.final %>% select(OWNERSHIP,DISTURB,INTENSITY,ELEV,
+																	WATER,WATER.20,WATER.150,WATER.500,
+																	TRANSPORT,GRASS,MIXFOR,DEVOP,DECID,
+																	WETE,PAST,OPENH20,EVRGRN,SHRSCR,
+																	BARREN,DEVLO,WETW,CROP,DEVMED)
+overstory <- env.final %>% select(CANOPY,Acer.rubrum,Acer.saccharinum,
+																	Carpinus.caroliniana,Carya.carolinae.septentrionalis,
+																	Carya.glabra,Carya.ovata,Carya.sp,
+																	Carya.tomentosa,Cornus.florida,
+																	Fagus.grandifolia,Fraxinus.americana,
+																	Fraxinus.pennsylvanica,Fraxinus.sp,
+																	Hamamelis.virginiana,Liquidambar.styraciflua,
+																	Liriodendron.tulipfera,Magnolia.sp,
+																	Nyssa.sylvatica,Pinus.taeda,Platanus.occidentalis,
+																	Prunus.americana,Prunus.serotina,Quercus.alba,
+																	Quercus.coccinea,Quercus.falcata,Quercus.lyrata,
+																	Quercus.marilandica,Quercus.nigra,Quercus.phellos,
+																	Quercus.stellata,Quercus.velutina,Taxodium.distichum,
+																	Ulmus.alata,Ulmus.americana,Ulmus.rubra,Ulmus.sp)
+
+length(time)+length(overstory)+length(soil.ground)+length(landscape)
+
+# soil forward selection
+soil.rda <- rda(red.spe.hel ~ ., soil.ground)
+soil.step.forward <- ordiR2step(rda(red.spe.hel ~ 1, data=soil.ground), 
+scope=formula(soil.rda), R2scope = F, direction="forward", pstep=1000)
+# TEXTURE + PH + ZN + CA + ROCK 
+
+# landscape forward selection
+landscape.rda <- rda(red.spe.hel ~ ., landscape)
+landscape.step.forward <- ordiR2step(rda(red.spe.hel ~ 1, data=landscape), 
+scope=formula(landscape.rda), R2scope = F, direction="forward", pstep=1000)
+# OWNERSHIP + EVRGRN + WETE + DEVOP + GRASS + WATER.150
+
+# overstory forward selection
+overstory.rda <- rda(red.spe.hel ~ ., overstory)
+overstory.step.forward <- ordiR2step(rda(red.spe.hel ~ 1, data=overstory), 
+scope=formula(overstory.rda), R2scope = F, direction="forward", pstep=1000)
+# CANOPY + Pinus.taeda + Quercus.alba + Quercus.stellata + Ulmus.alata
+# + Liriodendron.tulipfera + Carya.glabra + Quercus.falcata 
+
+# Create the PCNM variables ####
+spatial.tmp <- as.data.frame(env[,2:3]) # extract spatial variables for later analysis
+spatial.tmp <- rename(spatial.tmp, longitude = east_x, latitude = north_y)
+spatial <- geoXY(spatial.tmp$longitude, spatial.tmp$latitude)
+
+# Is there a linear trend in the mite data?
+anova(rda(red.spe.hel, spatial)) # Result: significant trend
+# Computation of linearly detrended mite data
+red.spe.hel.det <- resid(lm(as.matrix(red.spe.hel) ~ ., data = as.data.frame(spatial)))
+
+## Step 1. Construct the matrix of dbMEM variables
+dbmem.tmp <- dbmem(spatial, silent = FALSE)
+dbmem <- as.data.frame(dbmem.tmp)
+
+# Truncation distance used above:
+thr <- give.thresh(dist(spatial))
+
+# Display and count the eigenvalues
+attributes(dbmem.tmp)$values 
+length(attributes(dbmem.tmp)$values) # 18 eigenvalues
+
+## Step 2. Run the global dbMEM analysis on the detrended
+## Hellinger-transformed reduced species data
+dbmem.rda <- rda(red.spe.hel.det ~., dbmem)
+anova(dbmem.rda) # model is significant
+
+
+## Step 3. Since the R-square is significant, compute the adjusted
+## R2 and run a forward selection of the dbmem variables 
+R2a <- RsquareAdj(dbmem.rda)$adj.r.squared
+dbmem.fwd <- forward.sel(red.spe.hel, as.matrix(dbmem),
+												 adjR2thresh = R2a)
+
+nb.sig.dbmem <- nrow(dbmem.fwd) # 3 signif. dbMEM
+
+# Identity of the significant dbMEM in increasing order
+dbmem.sign <- sort(dbmem.fwd[ ,2])
+
+# Write the significant dbMEM to a new object 
+space <- dbmem[ ,c(dbmem.sign)]
+# Soil Partial RDAs ####
+TEXTURE.rda <- rda(red.spe.hel ~ TEXTURE +Condition(PERIOD,OM,P,K,CA,MG,ZN,PH,LICHEN,
+																		LITTER,MOSS,ROCK,ROOT,SOIL,STREAM,
+																		TRAMPLING,WOOD,WRACKI,CRUSTACEAN,
+																		OWNERSHIP,DISTURB,INTENSITY,ELEV,
+																		WATER,WATER.20,WATER.150,WATER.500,
+																		TRANSPORT,GRASS,MIXFOR,DEVOP,DECID,
+																		WETE,PAST,OPENH20,EVRGRN,SHRSCR,
+																		BARREN,DEVLO,WETW,CROP,DEVMED,
+																		CANOPY,Acer.rubrum,Acer.saccharinum,
+																		Carpinus.caroliniana,Carya.carolinae.septentrionalis,
+																		Carya.glabra,Carya.ovata,Carya.sp,
+																		Carya.tomentosa,Cornus.florida,
+																		Fagus.grandifolia,Fraxinus.americana,
+																		Fraxinus.pennsylvanica,Fraxinus.sp,
+																		Hamamelis.virginiana,Liquidambar.styraciflua,
+																		Liriodendron.tulipfera,Magnolia.sp,
+																		Nyssa.sylvatica,Pinus.taeda,Platanus.occidentalis,
+																		Prunus.americana,Prunus.serotina,Quercus.alba,
+																		Quercus.coccinea,Quercus.falcata,Quercus.lyrata,
+																		Quercus.marilandica,Quercus.nigra,Quercus.phellos,
+																		Quercus.stellata,Quercus.velutina,Taxodium.distichum,
+																		Ulmus.alata,Ulmus.americana,Ulmus.rubra,Ulmus.sp) , data=env.final)
+anova(TEXTURE.rda)
